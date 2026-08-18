@@ -1,0 +1,28 @@
+# Full dependency set for Hurricane Watch.
+# Order matters for pip: install the geo stack (shapely/pyproj) before cartopy.
+#
+# EASIEST INSTALL (avoids all the GEOS/PROJ system-library pain):
+#     conda install -c conda-forge tropycal streamlit pydeck
+#
+# Or with pip:
+#     pip install -r requirements.txt
+
+# --- geo stack (the usual culprits: shapely, cartopy) ---
+shapely>=2.0
+pyproj>=3.4
+pyshp>=2.1
+cartopy>=0.21
+
+# --- tropycal + its data deps ---
+tropycal>=1.5
+numpy>=1.24
+scipy>=1.9
+pandas>=1.3
+xarray>=2023.1
+networkx>=2.0
+requests>=2.22
+matplotlib>=3.6
+
+# --- dashboard ---
+streamlit>=1.40
+pydeck>=0.9
