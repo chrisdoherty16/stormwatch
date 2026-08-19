@@ -56,7 +56,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🌀 Hurricane Watch")
+st.title("🌪️ Hurricane Watch 🌪️") 
 st.caption("Live global tropical-cyclone monitor · NHC + JTWC via Tropycal")
 
 
@@ -552,7 +552,7 @@ invests = [s for s in systems if s["invest"]]
 _hdr = f"{len(storms)} storm{'s' if len(storms) != 1 else ''}"
 if invests:
     _hdr += f" · {len(invests)} area{'s' if len(invests) != 1 else ''} of interest"
-st.subheader(f"Currently monitoring — {_hdr}")
+st.subheader(f"🚨 Currently monitoring — {_hdr} 🚨")
 st.caption("🧠 AI briefs on" if _ai_on else
            "AI briefs off — add GEMINI_API_KEY to .streamlit/secrets.toml to enable.")
 
@@ -626,8 +626,8 @@ def _prob_color(p):
 
 
 st.markdown("---")
-st.subheader(f"🌱 Formation outlook — {len(invests)} area"
-             f"{'s' if len(invests) != 1 else ''} of interest")
+st.subheader(f"🔎 Formation outlook — {len(invests)} area"
+             f"{'s' if len(invests) != 1 else ''} of interest 🔎")
 st.caption("Disturbances NHC is watching, with their chance of developing into a "
            "tropical cyclone. (NHC basins only; JTWC areas show no odds.)")
 
