@@ -21,6 +21,7 @@ except Exception:
 
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as components
 import pydeck as pdk
 from tropycal import realtime
 
@@ -72,13 +73,29 @@ def category(vmax):
     return 0
 
 
+# Single source of truth for all category colours. Edit an RGB here and BOTH
+# the map dots and the legend update together. Hues are deliberately spread
+# (grey→blue→teal→lime→yellow→orange→deep-orange→red) so adjacent categories
+# are easy to tell apart.
+PALETTE = {
+    "Cat 5":       [230, 25, 75],    # red
+    "Cat 4":       [255, 100, 40],   # deep orange
+    "Cat 3":       [255, 165, 0],    # bright orange
+    "Cat 2":       [255, 225, 25],   # pure yellow
+    "Cat 1":       [150, 220, 80],   # lime green (distinct hue)
+    "Trop. Storm": [40, 200, 215],   # teal
+    "Depression":  [90, 150, 255],   # blue
+    "Invest":      [150, 160, 175],  # grey
+}
+
+
 def color(vmax, invest=False):
     if invest:
-        return [150, 160, 175]
-    return {
-        5: [255, 45, 85], 4: [255, 96, 55], 3: [255, 149, 0],
-        2: [255, 214, 10], 1: [255, 245, 120],
-    }.get(category(vmax), [48, 209, 220] if (vmax or 0) >= 34 else [100, 160, 255])
+        return PALETTE["Invest"]
+    cat = category(vmax)
+    if cat >= 1:
+        return PALETTE[f"Cat {cat}"]
+    return PALETTE["Trop. Storm"] if (vmax or 0) >= 34 else PALETTE["Depression"]
 
 
 def classify(vmax, stype, basin, invest=False):
@@ -380,14 +397,20 @@ def _read(rt, want_cone, source="NHC"):
                 except Exception:
                     pass
 
-            # NHC forecast discussion text (for the AI brief). NHC/CPHC only.
-            discussion = None
+            # NHC forecast discussion text (for the AI brief) + source URL
+            # (for the "NHC source" button). NHC/CPHC only.
+            discussion, nhc_url = None, None
             if source == "NHC" and not invest:
                 try:
                     d = s.get_nhc_discussion(forecast=-1)
-                    discussion = d.get("text") if isinstance(d, dict) else None
+                    if isinstance(d, dict):
+                        discussion = d.get("text")
+                        nhc_url = d.get("url")  # tropycal may expose this
                 except Exception:
-                    discussion = None
+                    discussion, nhc_url = None, None
+            # Fallback: NHC's live active-cyclones page (always resolves).
+            if source == "NHC" and not nhc_url:
+                nhc_url = "https://www.nhc.noaa.gov/cyclones/"
 
             # invest formation odds (for the outlook panel)
             prob = _formation_prob(s) if invest else None
@@ -398,7 +421,7 @@ def _read(rt, want_cone, source="NHC"):
                 "track": track, "pos": track[-1],
                 "fc_track": ([track[-1]] + fc_track) if fc_track else [],
                 "cone": cone, "outlook": outlook,
-                "discussion": discussion, "prob": prob,
+                "discussion": discussion, "nhc_url": nhc_url, "prob": prob,
                 "vmax": vmax, "mslp": mslp,
                 "klass": classify(vmax, stype, basin, invest),
                 "cat": category(vmax),
@@ -464,13 +487,9 @@ systems.sort(key=lambda s: (s["invest"], -s["vmax"]))
 # ---------------------------------------------------------------------------
 # Legend
 # ---------------------------------------------------------------------------
-_LEG = [("Cat 5", [255, 45, 85]), ("Cat 4", [255, 96, 55]),
-        ("Cat 3", [255, 149, 0]), ("Cat 2", [255, 214, 10]),
-        ("Cat 1", [255, 245, 120]), ("Trop. Storm", [48, 209, 220]),
-        ("Depression", [100, 160, 255]), ("Invest", [150, 160, 175])]
 st.markdown('<div class="hw-legend">' + "".join(
     f'<span><span class="hw-dot" style="background:rgb({r},{g},{b})"></span>{l}</span>'
-    for l, (r, g, b) in _LEG) + "</div>", unsafe_allow_html=True)
+    for l, (r, g, b) in PALETTE.items()) + "</div>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -530,8 +549,10 @@ _ai_on = bool(gemini_key())
 storms = [s for s in systems if not s["invest"]]
 invests = [s for s in systems if s["invest"]]
 
-st.subheader(f"Currently monitoring — {len(storms)} storm"
-             f"{'s' if len(storms) != 1 else ''}")
+_hdr = f"{len(storms)} storm{'s' if len(storms) != 1 else ''}"
+if invests:
+    _hdr += f" · {len(invests)} area{'s' if len(invests) != 1 else ''} of interest"
+st.subheader(f"Currently monitoring — {_hdr}")
 st.caption("🧠 AI briefs on" if _ai_on else
            "AI briefs off — add GEMINI_API_KEY to .streamlit/secrets.toml to enable.")
 
@@ -561,6 +582,14 @@ for i, s in enumerate(storms):
         trend_chip = (f'<span style="font-size:.72rem;color:{tcol};'
                       f'margin-left:6px;">{fo["trend"]}</span>')
 
+    # NHC source link (Option A) — opens the official page in a new tab.
+    src_link = ""
+    if s.get("nhc_url"):
+        src_link = (f'<a href="{s["nhc_url"]}" target="_blank" '
+                    f'style="font-size:.72rem;color:#8fb7ff;text-decoration:none;'
+                    f'border:1px solid #2a3550;border-radius:20px;'
+                    f'padding:2px 10px;">📄 NHC source ↗</a>')
+
     with cols[i % 3]:
         st.markdown(f"""
 <div class="hw-card" style="border-left-color:rgb({r},{g},{b})">
@@ -579,6 +608,7 @@ for i, s in enumerate(storms):
   <div style="color:#697083;font-size:.68rem;margin-top:8px">
     {s['pos'][1]:.1f}°, {s['pos'][0]:.1f}° · {s['time']}
   </div>
+  <div style="margin-top:10px">{src_link}</div>
 </div>""", unsafe_allow_html=True)
 
 
@@ -624,6 +654,14 @@ else:
     {s['pos'][1]:.1f}°, {s['pos'][0]:.1f}° · {s['time']}
   </div>
 </div>""", unsafe_allow_html=True)
+
+
+# Auto-refresh the whole page every 15 minutes so the board stays current
+# without a manual reload. Pairs with the 10-min data cache (a refresh after
+# the cache expires refetches; before that it's served from cache, so cheap).
+components.html(
+    "<script>setTimeout(function(){window.parent.location.reload();}, 900000);</script>",
+    height=0)
 
 
 # Background JTWC not ready yet -> wait briefly, then rerun to pick it up.
